@@ -1,4 +1,4 @@
-let staticFilesVersion = "staticFiles-v1";
+let staticFilesVersion = "staticFiles-v2";
 let dynamicRequestsVersion = "dynamicRequests-v1";
 
 // service worker install
@@ -23,7 +23,42 @@ self.addEventListener("install", (event) => {
 });
 
 // activate
-self.addEventListener("activate", (event) => {});
+self.addEventListener("activate", (event) => {
+    event.waitUntil(
+        caches.keys().then((keys) => {
+            return Promise.all(
+                keys.map((key) => {
+                    if (
+                        key != staticFilesVersion &&
+                        key !== dynamicRequestsVersion
+                    ) {
+                        caches.delete(key);
+                    }
+                })
+            );
+        })
+    );
+    return self.clients.claim();
+});
 
 // fetch
-self.addEventListener("fetch", (event) => {});
+self.addEventListener("fetch", (event) => {
+    event.respondWith(
+        caches.match(event.request).then((res) => {
+            if (res) {
+                return res;
+            } else {
+                return fetch(event.request)
+                    .then((res2) => {
+                        return caches
+                            .open(dynamicRequestsVersion)
+                            .then((cache) => {
+                                cache.put(event.request.url, res2.clone());
+                                return res2;
+                            });
+                    })
+                    .catch((err) => {});
+            }
+        })
+    );
+});
